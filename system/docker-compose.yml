@@ -1,0 +1,54 @@
+services:
+  eureka-server:
+    image: hotel-booking/eureka-server:0.0.1-SNAPSHOT
+    container_name: eureka-server
+    build:
+      context: .
+      dockerfile: eureka-server/Dockerfile
+    ports:
+      - "8761:8761"
+
+  api-gateway:
+    image: hotel-booking/api-gateway:0.0.1-SNAPSHOT
+    container_name: api-gateway
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      EUREKA_INSTANCE_HOSTNAME: api-gateway
+      EUREKA_INSTANCE_PREFERIPADDRESS: "false"
+    ports:
+      - "8080:8080"
+    depends_on:
+      - eureka-server
+
+  booking-service:
+    image: hotel-booking/booking-service:0.0.1-SNAPSHOT
+    container_name: booking-service
+    build:
+      context: .
+      dockerfile: booking-service/Dockerfile
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      EUREKA_INSTANCE_HOSTNAME: booking-service
+      EUREKA_INSTANCE_PREFERIPADDRESS: "false"
+    ports:
+      - "8081:8081"
+    depends_on:
+      - eureka-server
+
+  hotel-service:
+    image: hotel-booking/hotel-service:0.0.1-SNAPSHOT
+    container_name: hotel-service
+    build:
+      context: .
+      dockerfile: hotel-service/Dockerfile
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      EUREKA_INSTANCE_HOSTNAME: hotel-service
+      EUREKA_INSTANCE_PREFERIPADDRESS: "false"
+    ports:
+      - "8082:8082"
+    depends_on:
+      - eureka-server

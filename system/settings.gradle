@@ -1,0 +1,14 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
+rootProject.name = 'hotel-booking'
+
+include 'common'
+include 'eureka-server'
+include 'api-gateway'
+include 'booking-service'
+include 'hotel-service'

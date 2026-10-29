@@ -1,0 +1,86 @@
+server:
+  port: 8081
+  error:
+    whitelabel:
+      enabled: false
+
+spring:
+  application:
+    name: booking-service
+  datasource:
+    url: jdbc:h2:mem:booking
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate.connection.isolation: 2
+    open-in-view: false
+
+security:
+  jwt:
+    secret: "0123456789abcdef0123456789abcdef"
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [%X{traceId:-}] [%X{bookingId:-}] [%X{requestId:-}] [%X{event:-}] %logger - %msg%n"
+
+resilience4j:
+  timelimiter:
+    instances:
+      hotelCalls:
+        timeout-duration: 2s
+        cancel-running-future: true
+      hotelRelease:
+        timeout-duration: 2s
+        cancel-running-future: true
+  retry:
+    instances:
+      hotelCalls:
+        max-attempts: 3
+        wait-duration: 100ms
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - com.hotelbooking.booking.hotel.HotelTransientException
+          - java.util.concurrent.TimeoutException
+          - java.io.IOException
+          - org.springframework.web.client.ResourceAccessException
+        ignore-exceptions:
+          - com.hotelbooking.booking.hotel.HotelRejectedStatusException
+      hotelRelease:
+        max-attempts: 3
+        wait-duration: 100ms
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - com.hotelbooking.booking.hotel.HotelTransientException
+          - java.util.concurrent.TimeoutException
+          - java.io.IOException
+          - org.springframework.web.client.ResourceAccessException
+        ignore-exceptions:
+          - com.hotelbooking.booking.hotel.HotelRejectedStatusException
+  circuitbreaker:
+    instances:
+      hotelCalls:
+        ignore-exceptions:
+          - com.hotelbooking.booking.hotel.HotelRejectedStatusException
+        record-exceptions:
+          - com.hotelbooking.booking.hotel.HotelTransientException
+          - java.util.concurrent.TimeoutException
+          - java.io.IOException
+          - org.springframework.web.client.ResourceAccessException
+      hotelRelease:
+        ignore-exceptions:
+          - com.hotelbooking.booking.hotel.HotelRejectedStatusException
+        record-exceptions:
+          - com.hotelbooking.booking.hotel.HotelTransientException
+          - java.util.concurrent.TimeoutException
+          - java.io.IOException
+          - org.springframework.web.client.ResourceAccessException

@@ -1,0 +1,6 @@
+spring:
+  config:
+    import: optional:file:./src/main/resources/application.yml
+eureka:
+  client:
+    enabled: false
