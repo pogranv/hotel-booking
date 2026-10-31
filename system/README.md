@@ -4,23 +4,20 @@
 
 Клиент обращается только к шлюзу. Шлюз находит Booking и Hotel через Eureka и передает дальше заголовок Authorization, если клиент его прислал. Подпись токена шлюз не разбирает, так как каждый бизнес-сервис сам решает, достаточно ли роли для операции. Booking вызывает Hotel напрямую по имени hotel-service, потому что подтверждение доступности и снятие блокировки остаются внутренним шагом саги.
 
-```plantuml
-@startuml
-left to right direction
-actor "Клиент" as client
-component "API Gateway" as gateway
-component "Eureka" as eureka
-component "Booking Service" as booking
-component "Hotel Service" as hotel
-
-client --> gateway
-gateway --> booking : публичные маршруты
-gateway --> hotel : публичные маршруты
-booking --> hotel : recommend, confirm, release
-gateway ..> eureka
-booking ..> eureka
-hotel ..> eureka
-@enduml
+```mermaid
+flowchart LR
+  client[Клиент]
+  gateway[API Gateway]
+  eureka[Eureka]
+  booking[Booking Service]
+  hotel[Hotel Service]
+  client --> gateway
+  gateway -->|публичные маршруты| booking
+  gateway -->|публичные маршруты| hotel
+  booking -->|recommend, confirm, release| hotel
+  gateway -.-> eureka
+  booking -.-> eureka
+  hotel -.-> eureka
 ```
 
 Сплошные стрелки на схеме показывают вызовы с бизнес-данными, а пунктир показывает только регистрацию в реестре. Библиотека common процессом не является, однако ее классы попадают в jar шлюза, Booking и Hotel.
@@ -77,104 +74,67 @@ docker compose up --build
 
 У Booking и Hotel отдельные базы H2, поэтому общего внешнего ключа между ними нет. Поле bookings.room_id хранит номер как число.
 
-```plantuml
-@startuml
-hide circle
-skinparam linetype ortho
-
-entity users {
-  * id <<PK>>
-  --
-  * username <<UK>>
-  * password <<BCrypt>>
-  * role <<USER или ADMIN>>
-}
-
-entity bookings {
-  * id <<PK>>
-  --
-  * user_id <<FK>>
-  * room_id
-  * start_date
-  * end_date
-  * status <<PENDING, CONFIRMED или CANCELLED>>
-  * created_at
-  * request_id <<UK>>
-}
-
-users ||--o{ bookings
-
-note bottom of bookings
-  Индекс idx_bookings_user_created_id по user_id, created_at и id
-  обслуживает страницу истории.
-end note
-@enduml
+```mermaid
+erDiagram
+  users ||--o{ bookings : has
+  users {
+    bigint id PK
+    string username UK
+    string password "BCrypt"
+    string role "USER или ADMIN"
+  }
+  bookings {
+    bigint id PK
+    bigint user_id FK
+    bigint room_id
+    date start_date
+    date end_date
+    string status "PENDING, CONFIRMED или CANCELLED"
+    timestamp created_at
+    string request_id UK
+  }
 ```
 
-```plantuml
-@startuml
-hide circle
-skinparam linetype ortho
+Индекс idx_bookings_user_created_id по user_id, created_at и id обслуживает страницу истории.
 
-entity hotels {
-  * id <<PK>>
-  --
-  * name
-  * address
-}
-
-entity rooms {
-  * id <<PK>>
-  --
-  * hotel_id <<FK>>
-  * number
-  * available
-  * times_booked
-}
-
-hotels ||--o{ rooms
-
-note bottom of rooms
-  Пара hotel_id и number уникальна.
-  Индекс idx_rooms_recommendation по available, times_booked и id
-  обслуживает рекомендацию.
-  available означает ремонт или вывод из эксплуатации
-  и к занятости по датам отношения не имеет.
-end note
-@enduml
+```mermaid
+erDiagram
+  hotels ||--o{ rooms : has
+  hotels {
+    bigint id PK
+    string name
+    string address
+  }
+  rooms {
+    bigint id PK
+    bigint hotel_id FK
+    string number
+    boolean available
+    int times_booked
+  }
 ```
 
-```plantuml
-@startuml
-hide circle
-skinparam linetype ortho
+Пара hotel_id и number уникальна. Индекс idx_rooms_recommendation по available, times_booked и id обслуживает рекомендацию. available означает ремонт или вывод из эксплуатации и к занятости по датам отношения не имеет.
 
-entity rooms {
-  * id <<PK>>
-}
-
-entity room_locks {
-  * id <<PK>>
-  --
-  * room_id <<FK>>
-  * booking_id <<UK>>
-  * request_id <<UK>>
-  * start_date
-  * end_date
-  * status <<ACTIVE или RELEASED>>
-  * created_at
-}
-
-rooms ||--o{ room_locks
-
-note bottom of room_locks
-  Индекс idx_room_locks_overlap по room_id, status, start_date и end_date
-  нужен для поиска пересечения.
-  Пересечение считается только по ACTIVE и по полуоткрытому интервалу,
-  так как дата заезда входит, а дата выезда свободна.
-end note
-@enduml
+```mermaid
+erDiagram
+  rooms ||--o{ room_locks : locks
+  rooms {
+    bigint id PK
+  }
+  room_locks {
+    bigint id PK
+    bigint room_id FK
+    bigint booking_id UK
+    string request_id UK
+    date start_date
+    date end_date
+    string status "ACTIVE или RELEASED"
+    timestamp created_at
+  }
 ```
+
+Индекс idx_room_locks_overlap по room_id, status, start_date и end_date нужен для поиска пересечения. Пересечение считается только по ACTIVE и по полуоткрытому интервалу, так как дата заезда входит, а дата выезда свободна.
 
 На старте Hotel создает отели Hotel A и Hotel B с адресами Address A и Address B. Номера 101, 102 и 103 относятся к Hotel A, номер 104 того же отеля снят с эксплуатации, а номер 201 относится к Hotel B. Счетчик times_booked равен 1 у номеров 103 и 201 и равен 0 у остальных, поэтому рекомендация среди доступных номеров идет в порядке 101, 102, 103, 201.
 
